@@ -95,31 +95,8 @@
   )
 )
 
-;; Helper function to add a collection ID to a game's collection list
-(define-private (add-collection-to-game (game-id uint) (collection-id uint))
-  (match (map-get? game-collections { game-id: game-id })
-    existing-map (map-set game-collections 
-                          { game-id: game-id } 
-                          { collection-ids: (append (get collection-ids existing-map) collection-id) })
-    ;; If no existing map, create a new one with just this collection
-    (map-set game-collections 
-             { game-id: game-id } 
-             { collection-ids: (list collection-id) })
-  )
-)
 
-;; Helper function to add a rule ID to a collection-game rule mapping
-(define-private (add-rule-to-collection-game (source-collection-id uint) (target-game-id uint) (rule-id uint))
-  (match (map-get? collection-game-rules { source-collection-id: source-collection-id, target-game-id: target-game-id })
-    existing-map (map-set collection-game-rules 
-                          { source-collection-id: source-collection-id, target-game-id: target-game-id } 
-                          { rule-ids: (append (get rule-ids existing-map) rule-id) })
-    ;; If no existing map, create a new one with just this rule
-    (map-set collection-game-rules 
-             { source-collection-id: source-collection-id, target-game-id: target-game-id } 
-             { rule-ids: (list rule-id) })
-  )
-)
+
 
 ;; Public functions
 
@@ -173,40 +150,7 @@
   )
 )
 
-;; Register a new NFT collection
-;; Only the game owner can register an NFT collection for their game
-(define-public (register-collection 
-                (game-id uint) 
-                (contract-address principal) 
-                (name (string-ascii 64)) 
-                (description (string-utf8 256)) 
-                (metadata-uri (optional (string-utf8 256))))
-  (let
-    (
-      (new-collection-id (+ (var-get collection-count) u1))
-    )
-    ;; Check if the game exists and the sender is the game owner
-    (asserts! (is-game-registered game-id) ERR-GAME-NOT-FOUND)
-    (asserts! (is-game-owner game-id tx-sender) ERR-NOT-AUTHORIZED)
-    
-    ;; Increment the collection counter and store the new collection
-    (var-set collection-count new-collection-id)
-    (map-set nft-collections 
-             { collection-id: new-collection-id }
-             { 
-               game-id: game-id,
-               contract-address: contract-address,
-               name: name,
-               description: description,
-               metadata-uri: metadata-uri
-             })
-    
-    ;; Add this collection to the game's list of collections
-    (add-collection-to-game game-id new-collection-id)
-    
-    (ok new-collection-id)
-  )
-)
+
 
 ;; Update collection information
 ;; Only the game owner can update collection information
@@ -238,44 +182,6 @@
                })
       (ok true)
     )
-  )
-)
-
-;; Create a transformation rule
-;; Defines how NFTs from one collection can be used in another game
-(define-public (create-transformation-rule 
-                (source-collection-id uint) 
-                (target-game-id uint) 
-                (rule-type (string-ascii 32)) 
-                (rule-data (string-utf8 1024)) 
-                (metadata-uri (optional (string-utf8 256))))
-  (let
-    (
-      (new-rule-id (+ (var-get rule-count) u1))
-    )
-    ;; Check if source collection exists
-    (asserts! (is-collection-registered source-collection-id) ERR-SOURCE-COLLECTION-NOT-FOUND)
-    ;; Check if target game exists
-    (asserts! (is-game-registered target-game-id) ERR-TARGET-GAME-NOT-FOUND)
-    ;; Check if the sender is the owner of the target game
-    (asserts! (is-game-owner target-game-id tx-sender) ERR-NOT-AUTHORIZED)
-    
-    ;; Increment the rule counter and store the new rule
-    (var-set rule-count new-rule-id)
-    (map-set transformation-rules 
-             { rule-id: new-rule-id }
-             { 
-               source-collection-id: source-collection-id,
-               target-game-id: target-game-id,
-               rule-type: rule-type,
-               rule-data: rule-data,
-               metadata-uri: metadata-uri
-             })
-    
-    ;; Add this rule to the collection-game mapping for easier lookups
-    (add-rule-to-collection-game source-collection-id target-game-id new-rule-id)
-    
-    (ok new-rule-id)
   )
 )
 
